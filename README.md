@@ -1,6 +1,6 @@
-# Skript Hub Docs Tool
+# SkriptDocs.wiki Docs Tool
 
-Skript Hub Docs Tools is a plugin for Spigot servers to help Skript Addon Developers autogenerate their documentation. This tool offers a one command approach for plugins using Skript's Documentation Annotations to get all their documenatation into a single JSON file. This file can then be uploaded to Skript Hub or used in other tools so all Skripters can view and use the docs.
+SkriptDocs.wiki Docs Tools is a plugin for Spigot servers to help Skript Addon Developers autogenerate their documentation. This tool offers a one command approach for plugins using Skript's Documentation Annotations to get all their documenatation into a single JSON file. This file can then be uploaded to SkriptDocs.wiki or used in other tools so all Skripters can view and use the docs.
 
 ## Prerequisites
 
@@ -11,12 +11,12 @@ Skript Hub Docs Tools is a plugin for Spigot servers to help Skript Addon Develo
 
 ## How to use
 
-1. Download the Skript Hub Docs Tool from [here](https://github.com/SkriptHub/SkriptHubDocsTool/releases) and place it into your development servers ```/plugin/``` folder. **DO NOT USE THIS PLUGIN IN PRODUCTION!**
+1. Download the Skript Hub Docs Tool from [here](https://github.com/CrebsTheCoder/skriptdocsdocumentationtool/releases) and place it into your development servers ```/plugin/``` folder. **DO NOT USE THIS PLUGIN IN PRODUCTION!**
 2. Run your server.
 3. Either in console or in game run the command ```/gendocs```.
 4. Verify from the output dialog that there were not any errors/id collisions for your addon that could not be merged successfully. You might need manually check these in the output file.
-5. The generated JSON files can be found in the ```\plugins\SkriptHubDocsTool\documentation``` folder.
-6. (Optional) Copy the contents of you addons JSON file and paste it into the Skript Hub JSON import tool and submit the docs. Skript Hub will automatically update all your public documentation.
+5. The generated JSON files can be found in the ```\plugins\SkriptDocsDocumentationTool\documentation``` folder.
+6. (Optional) Copy the contents of you addons JSON file and paste it into the SkriptDocs.wiki Hub JSON import tool and submit the docs. SkriptDocs.wiki Hub will automatically update all your public documentation.
 
 ## Permissions
 
@@ -45,4 +45,4 @@ When there is a 3-way conflict a successful merge might show up as a possible fa
 
 ## Credits
 
-This tool is based off [TuSKe's](https://github.com/Tuke-Nuke/TuSKe) documentation generation tools with a few changes and improvements. Most of the base techniques/code is from [TuSke](https://github.com/Tuke-Nuke/TuSKe), so massive thanks to [Tuke-Nuke](https://github.com/Tuke-Nuke)!
+This tool is based off [Eyesnipers's skripthubdocstool](https://github.com/SkriptHub/SkriptHubDocsTool/tree/master/src/main) documentation generation tools with a few changes to also generate one for SkriptDocs.wiki.
