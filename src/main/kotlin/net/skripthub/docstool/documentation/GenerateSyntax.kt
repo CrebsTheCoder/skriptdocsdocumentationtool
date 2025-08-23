@@ -42,6 +42,7 @@ class GenerateSyntax {
             data.since = cleanHTML(grabAnnotation(syntaxInfoClass, Since::class.java, { it.value }))
             data.requiredPlugins = cleanHTML(grabAnnotation(syntaxInfoClass, RequiredPlugins::class.java, { it.value }))
             data.keywords = grabAnnotation(syntaxInfoClass, Keywords::class.java, { it.value })
+            data.source = info.originClassPath
 
             return data
         }
@@ -87,6 +88,7 @@ class GenerateSyntax {
             data.requiredPlugins = info.requiredPlugins
             data.keywords = info.keywords
             data.entries = generateEntriesFromSyntaxElementInfo(info, sender)
+            data.source = info.originClassPath
 
             if (getter != null) {
                 val classes = getter.getEventValues(info.events)
@@ -145,6 +147,8 @@ class GenerateSyntax {
             } else {
                 data.patterns = Array(1) { _ -> info.codeName }
             }
+            // For ClassInfo, we need to get the source from the class itself
+            data.source = info.c.name
             return data
         }
 
@@ -172,6 +176,8 @@ class GenerateSyntax {
                 data.returnType =
                     if (infoReturnType.docName.isNullOrBlank()) infoReturnType.codeName else infoReturnType.docName
             }
+            // For JavaFunction, we get the source from the function's class
+            data.source = info.javaClass.name
             return data
         }
 

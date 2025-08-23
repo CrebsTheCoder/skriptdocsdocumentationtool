@@ -33,6 +33,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
     )
 
     private val fileType: FileType = JsonFile(false)
+    private val skriptDocsFileType: FileType = SkriptDocsAddonFile(false)
 
     fun load() {
         Bukkit.getScheduler().runTaskLaterAsynchronously(instance, this, 10L)
@@ -131,6 +132,8 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         // Done, now let's write them all into files
         for (addon in addonMap.values) {
             addon.sortLists()
+            
+            // Write original JSON format
             val file = File(docsDir, "${addon.name}.${fileType.extension}")
             if (!file.exists()) {
                 file.parentFile.mkdirs()
@@ -143,7 +146,20 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
             } catch (io: IOException) {
                 io.printStackTrace()
             }
-
+            
+            // Write skriptdocs format
+            val skriptDocsFile = File(docsDir, "skriptdocs-${addon.name}.${skriptDocsFileType.extension}")
+            if (!skriptDocsFile.exists()) {
+                skriptDocsFile.parentFile.mkdirs()
+                try {
+                    skriptDocsFile.createNewFile()
+                } catch (ignored: IOException) {}
+            }
+            try {
+                BufferedWriter(OutputStreamWriter(FileOutputStream(skriptDocsFile), "UTF-8")).use { writer -> skriptDocsFileType.write(writer, addon) }
+            } catch (io: IOException) {
+                io.printStackTrace()
+            }
         }
 
         sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"

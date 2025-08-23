@@ -17,6 +17,7 @@ data class SyntaxData(var id: String? = null,
                       var requiredPlugins: Array<String>? = null,
                       var entries: Array<DocumentationEntryNode>? = null,
                       var keywords: Array<String>? = null,
+                      var source: String? = null,
     ) {
 
     fun toMap(): Map<String, Any> {
@@ -36,6 +37,7 @@ data class SyntaxData(var id: String? = null,
         addArray(map, "required plugins", requiredPlugins)
         addEntryNodes(map, entries)
         addArray(map, "keywords", keywords)
+        addProperty(map, "source", source)
         return map
     }
 

@@ -1,0 +1,54 @@
+{
+  "Skript": {
+    "event": {
+      "Player Join Event": {
+        "name": "Player Join Event",
+        "syntax": "on join",
+        "description": "Called when a player joins the server.",
+        "since": "1.0",
+        "examples": "on join:\n    broadcast \"Welcome %player%!\"",
+        "source": "ch.njol.skript.events.EvtJoin"
+      },
+      "Player Quit Event": {
+        "name": "Player Quit Event", 
+        "syntax": "on quit",
+        "description": "Called when a player leaves the server.",
+        "since": "1.0",
+        "examples": "on quit:\n    broadcast \"%player% has left the server\"",
+        "source": "ch.njol.skript.events.EvtQuit"
+      }
+    },
+    "effect": {
+      "Send Message": {
+        "name": "Send Message",
+        "syntax": "send %string% to %player%",
+        "description": "Sends a message to a player.",
+        "since": "1.0",
+        "examples": "send \"Hello!\" to player",
+        "source": "ch.njol.skript.effects.EffMessage"
+      }
+    },
+    "expression": {
+      "Player Name": {
+        "name": "Player Name",
+        "syntax": "name of %player%",
+        "description": "Returns the name of a player.",
+        "since": "1.0",
+        "examples": "set {_name} to name of player",
+        "source": "ch.njol.skript.expressions.ExprName"
+      }
+    }
+  },
+  "MyAddon": {
+    "expression": {
+      "Custom Value": {
+        "name": "Custom Value",
+        "syntax": "custom value of %player%",
+        "description": "Returns a custom value for the player.",
+        "since": "2.0",
+        "examples": "set {_value} to custom value of player",
+        "source": "/src/main/java/com/example/myaddon/expressions/ExprCustomValue.java"
+      }
+    }
+  }
+}
