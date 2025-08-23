@@ -1,10 +1,10 @@
 main: net.skripthub.docstool.Core
-name: SkriptHubDocsTool
+name: SkriptDocsDocumentationTool
 description: A tool for addon devs of Skript to easily generate docs for their addon.
 author: eyesniper2
 website: https://skripthub.net/
 depend: [Skript]
-prefix: Skript Hub Docs Tool
+prefix: Skript Docs Documentation Tool
 version: @version@
 api-version: '1.17'
 

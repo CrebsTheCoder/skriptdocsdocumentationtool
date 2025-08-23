@@ -70,7 +70,9 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                     syntaxEntry.addProperty("examples", examples)
                     
                     // source - the file location where this syntax is defined
-                    syntaxEntry.addProperty("source", syntax.source ?: "")
+                    // For SkriptDocs format, use proper class path instead of plugin name
+                    val sourceToUse = syntax.properSource ?: syntax.source ?: ""
+                    syntaxEntry.addProperty("source", sourceToUse)
                     
                     // Use the syntax name as the key, or fall back to ID if name is somehow null
                     val entryKey = syntax.name ?: syntax.id ?: "unknown"
@@ -83,4 +85,5 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
             }
         }
     }
+    
 }

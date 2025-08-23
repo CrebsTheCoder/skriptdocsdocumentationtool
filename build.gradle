@@ -27,6 +27,24 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
 apply plugin: 'kotlin'
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
 processResources {
     from("src/main/resources") {
         duplicatesStrategy = 'include'

@@ -18,6 +18,7 @@ data class SyntaxData(var id: String? = null,
                       var entries: Array<DocumentationEntryNode>? = null,
                       var keywords: Array<String>? = null,
                       var source: String? = null,
+                      var properSource: String? = null,
     ) {
 
     fun toMap(): Map<String, Any> {

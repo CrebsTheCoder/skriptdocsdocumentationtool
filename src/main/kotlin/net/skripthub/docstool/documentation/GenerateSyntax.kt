@@ -23,6 +23,7 @@ import java.lang.reflect.Field
 import java.util.*
 import java.util.function.Function
 
+
 class GenerateSyntax {
 
     companion object {
@@ -39,10 +40,11 @@ class GenerateSyntax {
             data.patterns = cleanSyntaxInfoPatterns(info.patterns)
             data.entries = generateEntriesFromSyntaxElementInfo(info, sender)
             data.examples = cleanSyntaxInfoExamples(syntaxInfoClass)
-            data.since = cleanHTML(grabAnnotation(syntaxInfoClass, Since::class.java, { it.value }))
+            data.since = cleanHTML(grabAnnotationSafely(syntaxInfoClass, Since::class.java, { it.value }, null))
             data.requiredPlugins = cleanHTML(grabAnnotation(syntaxInfoClass, RequiredPlugins::class.java, { it.value }))
             data.keywords = grabAnnotation(syntaxInfoClass, Keywords::class.java, { it.value })
             data.source = info.originClassPath
+            data.properSource = getProperSourcePath(info.originClassPath, info.getElementClass().name)
 
             return data
         }
@@ -89,6 +91,7 @@ class GenerateSyntax {
             data.keywords = info.keywords
             data.entries = generateEntriesFromSyntaxElementInfo(info, sender)
             data.source = info.originClassPath
+            data.properSource = getProperSourcePath(info.originClassPath, info.getElementClass().name)
 
             if (getter != null) {
                 val classes = getter.getEventValues(info.events)
@@ -322,6 +325,44 @@ class GenerateSyntax {
             if (!source.isAnnotationPresent(annotation))
                 return default
             return supplier.apply(source.getAnnotation(annotation)) ?: default
+        }
+
+        private fun <A : Annotation, R> grabAnnotationSafely(source: Class<*>, annotation: Class<A>, supplier: Function<A, R?>, default: R? = null): R? {
+            return try {
+                // First check if the annotation is present at all
+                if (!source.isAnnotationPresent(annotation))
+                    return default
+                
+                // Try to get the annotation - this can throw AnnotationTypeMismatchException
+                val annotationInstance = source.getAnnotation(annotation) ?: return default
+                
+                // Try to apply the supplier function - this can also throw exceptions
+                supplier.apply(annotationInstance) ?: default
+            } catch (e: java.lang.annotation.AnnotationTypeMismatchException) {
+                // Handle the case where annotation has malformed data like "[INSERT VERSION]"
+                // This is common when addon developers use placeholder values
+                default
+            } catch (e: java.lang.annotation.AnnotationFormatError) {
+                // Handle annotation format errors
+                default
+            } catch (e: Exception) {
+                // Handle any other annotation processing errors
+                default
+            }
+    
+            private fun getProperSourcePath(originClassPath: String?, elementClassName: String): String {
+                // Check if originClassPath looks like a proper class path (contains dots and doesn't look like a plugin name)
+                return if (originClassPath != null &&
+                           originClassPath.contains('.') &&
+                           !originClassPath.matches(Regex("^[a-z-]+$"))) {
+                    // originClassPath looks like a proper class path
+                    originClassPath
+                } else {
+                    // originClassPath is likely a plugin name, use the actual class name
+                    elementClassName
+                }
+            }
+    
         }
 
     }

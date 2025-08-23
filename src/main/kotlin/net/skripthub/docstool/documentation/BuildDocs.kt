@@ -121,7 +121,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         // Write to JSON
         // Before, lets delete old files...
-        val docsDir = File(instance.dataFolder, "documentation/")
+        val docsDir = File("SkriptDocsDocumentationTool/documentation/")
         if (docsDir.exists()) {
             val files = docsDir.listFiles()
             if (files != null)
