@@ -50,6 +50,9 @@ class JsonFile(raw: Boolean) : FileType("json") {
         val syntax = JsonObject()
         for (entry in info.toMap().entries) {
             val property = entry.key
+            // Skip the "source" field for SkriptHub format
+            if (property == "source") continue
+            
             when (entry.value) {
                 is String -> syntax.addProperty(property, entry.value as String)
                 is Boolean -> syntax.addProperty(property, entry.value as Boolean)

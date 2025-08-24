@@ -40,7 +40,7 @@ class GenerateSyntax {
             data.patterns = cleanSyntaxInfoPatterns(info.patterns)
             data.entries = generateEntriesFromSyntaxElementInfo(info, sender)
             data.examples = cleanSyntaxInfoExamples(syntaxInfoClass)
-            data.since = cleanHTML(grabAnnotationSafely(syntaxInfoClass, Since::class.java, { it.value }, null))
+            data.since = cleanHTML(grabAnnotationSafely(syntaxInfoClass, Since::class.java) { it.value })
             data.requiredPlugins = cleanHTML(grabAnnotation(syntaxInfoClass, RequiredPlugins::class.java, { it.value }))
             data.keywords = grabAnnotation(syntaxInfoClass, Keywords::class.java, { it.value })
             data.source = info.originClassPath
@@ -67,7 +67,7 @@ class GenerateSyntax {
                     .map { it.key.name.lowercase(Locale.getDefault()).replace('_', ' ') }
                     .sorted()
                     .toTypedArray()
-            } catch (ignored: Exception) {}
+            } catch (_: Exception) {}
 
             return data
         }
@@ -195,7 +195,7 @@ class GenerateSyntax {
 
             try {
                 fields = elementClass.declaredFields
-            } catch (ex: Exception) {
+            } catch (_: Exception) {
                 sender?.sendMessage(
                     "[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
                             + ChatColor.RESET + "] " + ChatColor.YELLOW + "Warning: Unable to access declared fields " +
@@ -213,7 +213,7 @@ class GenerateSyntax {
                     try {
                         field.isAccessible = true
                         entryValidator = field.get(null) as? EntryValidator ?: break
-                    } catch (ex: Exception) {
+                    } catch (_: Exception) {
                         sender?.sendMessage(
                             "[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
                                     + ChatColor.RESET + "] " + ChatColor.YELLOW + "Warning: Unable to find the " +
@@ -230,7 +230,7 @@ class GenerateSyntax {
                             field.get(null) as? EntryValidatorBuilder ?: break
                         entryValidator = entryValidatorBuilder.build()
 
-                    } catch (ex: Exception) {
+                    } catch (_: Exception) {
                         sender?.sendMessage(
                             "[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
                                     + ChatColor.RESET + "] " + ChatColor.YELLOW + "Warning: Unable to find the " +
@@ -327,42 +327,41 @@ class GenerateSyntax {
             return supplier.apply(source.getAnnotation(annotation)) ?: default
         }
 
-        private fun <A : Annotation, R> grabAnnotationSafely(source: Class<*>, annotation: Class<A>, supplier: Function<A, R?>, default: R? = null): R? {
+        private fun <A : Annotation, R> grabAnnotationSafely(source: Class<*>, annotation: Class<A>, supplier: Function<A, R?>): R? {
             return try {
                 // First check if the annotation is present at all
                 if (!source.isAnnotationPresent(annotation))
-                    return default
+                    return null
                 
                 // Try to get the annotation - this can throw AnnotationTypeMismatchException
-                val annotationInstance = source.getAnnotation(annotation) ?: return default
+                val annotationInstance = source.getAnnotation(annotation) ?: return null
                 
                 // Try to apply the supplier function - this can also throw exceptions
-                supplier.apply(annotationInstance) ?: default
-            } catch (e: java.lang.annotation.AnnotationTypeMismatchException) {
+                supplier.apply(annotationInstance)
+            } catch (_: java.lang.annotation.AnnotationTypeMismatchException) {
                 // Handle the case where annotation has malformed data like "[INSERT VERSION]"
                 // This is common when addon developers use placeholder values
-                default
-            } catch (e: java.lang.annotation.AnnotationFormatError) {
+                null
+            } catch (_: java.lang.annotation.AnnotationFormatError) {
                 // Handle annotation format errors
-                default
-            } catch (e: Exception) {
+                null
+            } catch (_: Exception) {
                 // Handle any other annotation processing errors
-                default
+                null
             }
-    
-            private fun getProperSourcePath(originClassPath: String?, elementClassName: String): String {
-                // Check if originClassPath looks like a proper class path (contains dots and doesn't look like a plugin name)
-                return if (originClassPath != null &&
-                           originClassPath.contains('.') &&
-                           !originClassPath.matches(Regex("^[a-z-]+$"))) {
-                    // originClassPath looks like a proper class path
-                    originClassPath
-                } else {
-                    // originClassPath is likely a plugin name, use the actual class name
-                    elementClassName
-                }
+        }
+        
+        private fun getProperSourcePath(originClassPath: String?, elementClassName: String): String {
+            // Check if originClassPath looks like a proper class path (contains dots and doesn't look like a plugin name)
+            return if (originClassPath != null &&
+                       originClassPath.contains('.') &&
+                       !originClassPath.matches(Regex("^[a-z-]+$"))) {
+                // originClassPath looks like a proper class path
+                originClassPath
+            } else {
+                // originClassPath is likely a plugin name, use the actual class name
+                elementClassName
             }
-    
         }
 
     }

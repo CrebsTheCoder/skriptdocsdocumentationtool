@@ -65,9 +65,9 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                     val since = syntax.since?.firstOrNull() ?: ""
                     syntaxEntry.addProperty("since", since)
                     
-                    // examples - join examples array with newlines
-                    val examples = syntax.examples?.joinToString("\n") ?: ""
-                    syntaxEntry.addProperty("examples", examples)
+                    // example - join examples array with newlines
+                    val example = syntax.examples?.joinToString("\n") ?: ""
+                    syntaxEntry.addProperty("example", example)
                     
                     // source - the file location where this syntax is defined
                     // For SkriptDocs format, use proper class path instead of plugin name

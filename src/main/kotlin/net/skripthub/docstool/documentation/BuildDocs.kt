@@ -34,6 +34,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
     private val fileType: FileType = JsonFile(false)
     private val skriptDocsFileType: FileType = SkriptDocsAddonFile(false)
+    private val skriptHubFileType: FileType = SkriptHubJsonFile(false)
 
     fun load() {
         Bukkit.getScheduler().runTaskLaterAsynchronously(instance, this, 10L)
@@ -121,7 +122,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         // Write to JSON
         // Before, lets delete old files...
-        val docsDir = File("SkriptDocsDocumentationTool/documentation/")
+        val docsDir = File(instance.dataFolder, "documentation/")
         if (docsDir.exists()) {
             val files = docsDir.listFiles()
             if (files != null)
