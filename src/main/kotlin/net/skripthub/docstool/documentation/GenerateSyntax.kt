@@ -52,15 +52,12 @@ class GenerateSyntax {
         fun generateSyntaxFromExpression(info: ExpressionInfo<*, *>, sender: CommandSender?): SyntaxData? {
             val data = generateSyntaxFromSyntaxElementInfo(info, sender) ?: return null
 
-            // Return Type
             val classInfo = Classes.getExactClassInfo(info.returnType) ?: Classes.getSuperClassInfo(info.returnType)
             if (classInfo != null)
                 data.returnType = if (classInfo.docName.isNullOrBlank()) classInfo.codeName else classInfo.docName
             else
-                // TODO: Throw an error when compiling the json letting the developer know
                 data.returnType = "Object"
 
-            // Changers
             val expr = ReflectionUtils.newInstance(info.getElementClass())
             try {
                 data.changers = expr.acceptedChangeModes.entries.filter { it.value is Array<Class<*>> }
@@ -103,7 +100,6 @@ class GenerateSyntax {
                     (0 until classes[x].size)
                         .mapNotNull { grabCodeName(classes[x][it]) }
                         .mapTo(times) { time[x] + it }
-                // Sort the event values alphabetically to prevent update churn
                 data.eventValues = times.sortedBy { it }.toTypedArray()
             }
 
@@ -129,7 +125,6 @@ class GenerateSyntax {
             data.examples = cleanHTML(info.examples as? Array<String>)
             data.usage = cleanHTML(info.usage as? Array<String>)
             data.since = if (!info.since.isNullOrBlank()) arrayOf(cleanHTML(info.since)!!) else null
-            // TODO: implement keywords when skript does
             val changer = info.changer
             if (changer != null)
                 data.changers = ChangeMode.values()
@@ -150,7 +145,6 @@ class GenerateSyntax {
             } else {
                 data.patterns = Array(1) { _ -> info.codeName }
             }
-            // For ClassInfo, we need to get the source from the class itself
             data.source = info.c.name
             return data
         }
@@ -179,7 +173,6 @@ class GenerateSyntax {
                 data.returnType =
                     if (infoReturnType.docName.isNullOrBlank()) infoReturnType.codeName else infoReturnType.docName
             }
-            // For JavaFunction, we get the source from the function's class
             data.source = info.javaClass.name
             return data
         }
@@ -189,7 +182,6 @@ class GenerateSyntax {
                 val entryValidator = info.entryValidator ?: return null
                 return entryValidator.entryData.map(DocumentationEntryNode::from).toTypedArray()
             }
-            // See if the class has a EntryValidator and try to pull that out to use as the source of truth.
             val elementClass = info.getElementClass() ?: return null
             val fields: Array<Field>
 
@@ -202,7 +194,6 @@ class GenerateSyntax {
                             "for ${info.originClassPath} to find the SectionValidator."
                 )
 
-                // ex.printStackTrace();
                 return null
             }
 
@@ -220,7 +211,6 @@ class GenerateSyntax {
                                     "EntryValidator for ${info.originClassPath}"
                         )
 
-                        // ex.printStackTrace();
                         return null
                     }
                 } else if (field.type.isAssignableFrom(EntryValidatorBuilder::class.java)) {
@@ -237,7 +227,6 @@ class GenerateSyntax {
                                     "EntryValidator.EntryValidatorBuilder for ${info.originClassPath}"
                         )
 
-                        // ex.printStackTrace();
                         return null
                     }
                 }
@@ -250,12 +239,6 @@ class GenerateSyntax {
         }
 
         private fun cleanSyntaxInfoExamples(syntaxInfoClass: Class<*>): Array<String>? {
-            // Skript does an if/else tree here that has no docs, I suspect some addon devs are going to mix and match
-            // these annotation by accident, lets make sure to capture everything.
-
-            // Example annotation was added in 2.10.2
-            // Examples is the classic example annotation
-
             val combinedExamples = ArrayList<String?>()
             grabAnnotation(syntaxInfoClass, Examples::class.java, { it.value })?.toCollection(combinedExamples)
             grabAnnotation(syntaxInfoClass, Example.Examples::class.java, { it.value.map { example -> example.value } })?.toCollection(combinedExamples)
@@ -316,7 +299,7 @@ class GenerateSyntax {
             val expectedClass: Class<*> = if (classObj.isArray) classObj.componentType else classObj
             val classInfo = Classes.getExactClassInfo(expectedClass)
                 ?: Classes.getSuperClassInfo(expectedClass)
-                ?: return null // If neither of the two methods managed to find a classinfo, return null
+                ?: return null
             val name = classInfo.name
             return if (classObj.isArray) name.plural else name.singular
         }
@@ -329,37 +312,27 @@ class GenerateSyntax {
 
         private fun <A : Annotation, R> grabAnnotationSafely(source: Class<*>, annotation: Class<A>, supplier: Function<A, R?>): R? {
             return try {
-                // First check if the annotation is present at all
                 if (!source.isAnnotationPresent(annotation))
                     return null
                 
-                // Try to get the annotation - this can throw AnnotationTypeMismatchException
                 val annotationInstance = source.getAnnotation(annotation) ?: return null
                 
-                // Try to apply the supplier function - this can also throw exceptions
                 supplier.apply(annotationInstance)
             } catch (_: java.lang.annotation.AnnotationTypeMismatchException) {
-                // Handle the case where annotation has malformed data like "[INSERT VERSION]"
-                // This is common when addon developers use placeholder values
                 null
             } catch (_: java.lang.annotation.AnnotationFormatError) {
-                // Handle annotation format errors
                 null
             } catch (_: Exception) {
-                // Handle any other annotation processing errors
                 null
             }
         }
         
         private fun getProperSourcePath(originClassPath: String?, elementClassName: String): String {
-            // Check if originClassPath looks like a proper class path (contains dots and doesn't look like a plugin name)
             return if (originClassPath != null &&
                        originClassPath.contains('.') &&
                        !originClassPath.matches(Regex("^[a-z-]+$"))) {
-                // originClassPath looks like a proper class path
                 originClassPath
             } else {
-                // originClassPath is likely a plugin name, use the actual class name
                 elementClassName
             }
         }
