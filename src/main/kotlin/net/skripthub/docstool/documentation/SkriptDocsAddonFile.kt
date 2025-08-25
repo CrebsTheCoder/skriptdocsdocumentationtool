@@ -74,14 +74,16 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                     val sourceToUse = syntax.properSource ?: syntax.source ?: ""
                     syntaxEntry.addProperty("source", sourceToUse)
                     
-                    // Use the syntax name as the key, or fall back to ID if name is somehow null
-                    val entryKey = syntax.name ?: syntax.id ?: "unknown"
                     // Add event values if present
-                    if (syntax.eventValues != null && syntax.eventValues.isNotEmpty()) {
+                    val eventValues = syntax.eventValues
+                    if (eventValues != null && eventValues.isNotEmpty()) {
                         val eventValuesArray = JsonArray()
-                        syntax.eventValues.forEach { eventValuesArray.add(it) }
+                        eventValues.forEach { eventValuesArray.add(it) }
                         syntaxEntry.add("event values", eventValuesArray)
                     }
+                    
+                    // Use the syntax name as the key, or fall back to ID if name is somehow null
+                    val entryKey = syntax.name ?: syntax.id ?: "unknown"
                     categoryObject.add(entryKey, syntaxEntry)
                 }
             }
