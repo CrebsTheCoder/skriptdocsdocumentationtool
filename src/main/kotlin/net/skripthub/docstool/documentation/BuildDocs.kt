@@ -1,5 +1,5 @@
-package net.skripthub.docstool.documentation
 
+package net.skripthub.docstool.documentation
 import ch.njol.skript.Skript
 import ch.njol.skript.classes.ClassInfo
 import ch.njol.skript.lang.SkriptEventInfo
@@ -22,29 +22,38 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
     private var addonMap: HashMap<String, AddonData> = hashMapOf()
 
-    // Skript has multiple internal class packages such as ch.njol.skript and org.skriptlang.skript.
-    // Since we base the package mapping based off of the entry class, which for Skript lives in the
-    // ch.njol.skript package, we don't and can't know about org.skriptlang.skript.
-    // addonPackageMap is a hard coded map of known internal packages so we are always mapping back
-    // to the right addon.
+    
     private var addonPackageMap: HashMap<String, String> = hashMapOf(
         "org.skriptlang.skript" to "ch.njol.skript",
         "Skript" to "ch.njol.skript"
     )
 
+    // Toggle deep debug dumps for unresolved SimpleEvent cases
+    private val VERBOSE_DUMP: Boolean = true
+
     private val fileType: FileType = JsonFile(false)
     private val skriptDocsFileType: FileType = SkriptDocsAddonFile(false)
-    private val skriptHubFileType: FileType = SkriptHubJsonFile(false)
 
     fun load() {
         Bukkit.getScheduler().runTaskLaterAsynchronously(instance, this, 10L)
     }
 
     override fun run() {
-        if (Skript.isAcceptRegistrations())
+        if (Skript.isAcceptRegistrations()) {
+            // Skript is still registering addons/events — reschedule shortly to avoid missing entries
+            println("[DEBUG] BuildDocs: Skript still accepting registrations, scheduling retry in 100 ticks")
+            sender?.sendMessage("[Skript Hub Docs Tool] Skript still registering events; will retry shortly.")
+            Bukkit.getScheduler().runTaskLaterAsynchronously(instance, this, 100L)
             return
+        }
         addonMap[Skript::class.java.`package`.name] = AddonData(
                 "Skript", AddonMetadata(Skript.getVersion().toString()))
+        // Also add canonical alias entries for known Skript package variations so core elements are always found
+        for (canonical in addonPackageMap.values) {
+            if (!addonMap.containsKey(canonical)) {
+                addonMap[canonical] = addonMap[Skript::class.java.`package`.name]!!
+            }
+        }
         for (addon in Skript.getAddons())
             addonMap[addon.plugin.javaClass.`package`.name] = AddonData(
                     addon.name, AddonMetadata(addon.version.toString()))
@@ -133,8 +142,8 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         // Done, now let's write them all into files
         for (addon in addonMap.values) {
             addon.sortLists()
-            
-            // Write original JSON format
+
+            // Write original JSON format (SkriptHub standard)
             val file = File(docsDir, "${addon.name}.${fileType.extension}")
             if (!file.exists()) {
                 file.parentFile.mkdirs()
@@ -147,7 +156,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
             } catch (io: IOException) {
                 io.printStackTrace()
             }
-            
+
             // Write skriptdocs format
             val skriptDocsFile = File(docsDir, "skriptdocs-${addon.name}.${skriptDocsFileType.extension}")
             if (!skriptDocsFile.exists()) {
@@ -165,7 +174,6 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
                 + ChatColor.RESET + "] " + ChatColor.GREEN + "Docs have been generated!")
-
     }
 
     private fun idCollisionTest(idSet: MutableSet<String>, listOfSyntaxData: MutableList<SyntaxData>, addon: String): MutableList<String>{
@@ -250,15 +258,22 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
     }
 
     private fun addSyntax(list: MutableList<SyntaxData>, syntax: SyntaxData?) {
-        if (syntax == null) {
-            return
+        if (syntax == null) return
+        if (syntax.name.isNullOrEmpty()) return
+        if (syntax.patterns.isNullOrEmpty()) return
+        val type = when (list) {
+            addonMap.values.flatMap { it.events } -> "event"
+            addonMap.values.flatMap { it.conditions } -> "condition"
+            addonMap.values.flatMap { it.effects } -> "effect"
+            addonMap.values.flatMap { it.expressions } -> "expression"
+            addonMap.values.flatMap { it.types } -> "type"
+            addonMap.values.flatMap { it.functions } -> "function"
+            addonMap.values.flatMap { it.sections } -> "section"
+            addonMap.values.flatMap { it.structures } -> "structure"
+            else -> "unknown"
         }
-        if (syntax.name.isNullOrEmpty()) {
-            return
-        }
-        if (syntax.patterns.isNullOrEmpty()) {
-            return
-        }
+        val addonName = addonMap.entries.find { it.value.events === list || it.value.conditions === list || it.value.effects === list || it.value.expressions === list || it.value.types === list || it.value.functions === list || it.value.sections === list || it.value.structures === list }?.key ?: "unknown"
+        println("[DEBUG] addSyntax: Added $type to $addonName: ${syntax.name} (${syntax.patterns?.joinToString()})")
         list.add(syntax)
     }
 
@@ -274,12 +289,151 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
     private fun getAddon(skriptEventInfo: SyntaxElementInfo<*>): AddonData? {
 
         var name = skriptEventInfo.getElementClass().`package`.name
-        // var testName = skriptEventInfo.getElementClass().packageName
+        val originClassPath = skriptEventInfo.originClassPath
 
+        // DEBUG: initial
+        println("[DEBUG] getAddon: Event class package: $name, originClassPath: $originClassPath")
+
+        // If registered via SimpleEvent (utility), try to discover the real event's package
         if (name == "ch.njol.skript.lang.util") {
-            // Used Simple event or expression registration
-            name = skriptEventInfo.originClassPath
-        }
+            // First, if this SyntaxElementInfo is actually a SkriptEventInfo, prefer its `events` array
+            try {
+                if (skriptEventInfo is SkriptEventInfo<*>) {
+                    val evs = skriptEventInfo.events
+                    println("[DEBUG] getAddon: SkriptEventInfo.events = ${evs?.map { it?.name }}")
+                    if (evs != null) {
+                        for (e in evs) {
+                            try {
+                                if (e != null
+                                    && e != skriptEventInfo.getElementClass()
+                                    && e != ch.njol.skript.lang.util.SimpleEvent::class.java
+                                    && org.bukkit.event.Event::class.java.isAssignableFrom(e)) {
+                                    name = e.`package`.name
+                                    println("[DEBUG] getAddon: used SkriptEventInfo.events -> $name (class=${e.name})")
+                                    break
+                                }
+                            } catch (_: Exception) {
+                                // ignore per-event failures
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // ignore casting/access errors and fall back to other heuristics
+            }
+
+            // If we've already found a non-default package via events, skip the heavier reflection work
+            if (name != "ch.njol.skript.lang.util") {
+                // continue normal flow below (mapping, lookup)
+            } else {
+                // 1) Prefer originClassPath when provided — but skip it if it points to Skript's SimpleEvent
+                if (!originClassPath.isNullOrEmpty() && originClassPath.contains('.')) {
+                    val ocp = originClassPath
+                    val pointsToSimpleEvent = ocp.contains("SimpleEvent") || ocp.endsWith(".SimpleEvent") || ocp.endsWith("SimpleEvent")
+                    if (pointsToSimpleEvent) {
+                        println("[DEBUG] getAddon: originClassPath points to Skript SimpleEvent, skipping as insufficient (originClassPath=$originClassPath)")
+                    } else {
+                        name = originClassPath.substringBeforeLast('.')
+                        println("[DEBUG] getAddon: used originClassPath -> $name (originClassPath=$originClassPath)")
+                        // used originClassPath, skip heavier reflection
+                        // continue normal flow below (mapping, lookup)
+                    }
+                } else {
+                    // 2) Fallback A: reflectively search for a Class field whose value is an Event subclass
+                    var discovered: Class<*>? = null
+                    var cls: Class<*>? = skriptEventInfo.javaClass
+                    while (cls != null) {
+                        for (field in cls.declaredFields) {
+                            try {
+                                field.isAccessible = true
+                                val valObj = field.get(skriptEventInfo)
+                                when (valObj) {
+                                    is Class<*> -> {
+                                        val candidate = valObj
+                                        if (candidate != skriptEventInfo.getElementClass()
+                                                && candidate != ch.njol.skript.lang.util.SimpleEvent::class.java
+                                                && org.bukkit.event.Event::class.java.isAssignableFrom(candidate)) {
+                                            discovered = candidate
+                                            break
+                                        }
+                                    }
+                                }
+                            } catch (_: Exception) {
+                                // ignore
+                            }
+                        }
+                        if (discovered != null) break
+                        cls = cls.superclass
+                    }
+
+                    // 2) Fallback B: try methods that return a Class
+                    if (discovered == null) {
+                        cls = skriptEventInfo.javaClass
+                        while (cls != null) {
+                            for (m in cls.declaredMethods) {
+                                try {
+                                    if (m.parameterCount == 0 && m.returnType == Class::class.java) {
+                                        m.isAccessible = true
+                                        val ret = m.invoke(skriptEventInfo) as? Class<*>
+                                        if (ret != null
+                                                && ret != skriptEventInfo.getElementClass()
+                                                && ret != ch.njol.skript.lang.util.SimpleEvent::class.java
+                                                && org.bukkit.event.Event::class.java.isAssignableFrom(ret)) {
+                                            discovered = ret
+                                            break
+                                        }
+                                    }
+                                } catch (_: Exception) {
+                                    // ignore
+                                }
+                            }
+                            if (discovered != null) break
+                            cls = cls.superclass
+                        }
+                    }
+
+                    // 3) Fallback C: search String fields that contain a class name and match known addon packages
+                    if (discovered == null) {
+                        cls = skriptEventInfo.javaClass
+                        searchLoop@ while (cls != null) {
+                            for (field in cls.declaredFields) {
+                                try {
+                                    field.isAccessible = true
+                                    val valObj = field.get(skriptEventInfo)
+                                    if (valObj is String && valObj.contains('.')) {
+                                        val candidateStr = valObj
+                                        val match = addonMap.keys.firstOrNull { candidateStr.startsWith(it) }
+                                        if (match != null) {
+                                            name = candidateStr.substringBeforeLast('.')
+                                            println("[DEBUG] getAddon: discovered origin string field -> $name (value=$candidateStr)")
+                                            break@searchLoop
+                                        }
+                                    }
+                                } catch (_: Exception) {
+                                    // ignore
+                                }
+                            }
+                            cls = cls.superclass
+                        }
+                    }
+
+                    if (discovered != null) {
+                        name = discovered.`package`.name
+                        println("[DEBUG] getAddon: discovered event class via reflection -> $name (class=${discovered.name})")
+                    } else {
+                        println("[DEBUG] getAddon: could not discover real event class via originClassPath or reflection; leaving as $name")
+                                        if (VERBOSE_DUMP) {
+                                            try {
+                                                // verboseDumpToFile is a private class-level helper (defined below)
+                                                verboseDumpToFile(skriptEventInfo)
+                                            } catch (ex: Exception) {
+                                                println("[DEBUG] getAddon: verboseDump failed: ${ex.message}")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
         // Check to see if we need to remap the package to the addon root package.
         val mappedPackageNode = addonPackageMap.entries.firstOrNull { name.startsWith(it.key) }
@@ -287,22 +441,20 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
             name = mappedPackageNode.value
         }
 
-        // DEBUG
-//        sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
-//                + ChatColor.RESET + "] " + ChatColor.YELLOW + "Calced Package Name: " + ChatColor.BLUE + "$name")
-//        val originClassPathName = skriptEventInfo.originClassPath
-//        sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
-//                + ChatColor.RESET + "] " + ChatColor.YELLOW + "originClassPath: " + ChatColor.GREEN + "$originClassPathName")
-//        sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
-//                + ChatColor.RESET + "] " + ChatColor.YELLOW + "Test Package Name: " + ChatColor.GREEN + "$testName")
-//        val patterntest = skriptEventInfo.patterns[0]
-//        sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Hub Docs Tool"
-//                + ChatColor.RESET + "] " + ChatColor.YELLOW + "First Pattern: " + ChatColor.LIGHT_PURPLE + "$patterntest")
+        // Try to find the addon
+        val found = addonMap.entries.firstOrNull { name.startsWith(it.key) }?.value
+        if (found != null) {
+            return found
+        }
 
-        // If null, bail and throw error
-        return addonMap.entries
-                .firstOrNull { name.startsWith(it.key) }
-                ?.value
+        // If we can't find the addon and this is from ch.njol.skript, it might be Skript core
+        if (name.startsWith("ch.njol.skript")) {
+            val skriptAddon = addonMap.entries.firstOrNull { it.key == "ch.njol.skript" }?.value
+            return skriptAddon
+        }
+
+        // Last resort - return null to skip this syntax element
+        return null
     }
 
     private fun getAddon(classObj: Class<*>): AddonData? {
@@ -318,5 +470,51 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         return addonMap.entries
                 .firstOrNull { name.startsWith(it.key) }
                 ?.value
+    }
+
+    // Writes a verbose runtime dump of an object (used when heuristics fail to discover the real event class)
+    private fun verboseDumpToFile(info: Any?) {
+        if (info == null) return
+        val cls = info.javaClass
+        val sb = StringBuilder()
+        sb.append("Dumping SyntaxElementInfo instance of ${cls.name}\n")
+        var c: Class<*>? = cls
+        while (c != null) {
+            sb.append("Class: ${c.name}\n")
+            for (f in c.declaredFields) {
+                try {
+                    f.isAccessible = true
+                    val v = try { f.get(info) } catch (e: Exception) { "<unreadable: ${e.javaClass.simpleName}>" }
+                    val sval = when (v) {
+                        null -> "null"
+                        is Class<*> -> "Class(${v.name})"
+                        is String -> "String(${v})"
+                        else -> v.toString()
+                    }
+                    sb.append("Field: ${f.name} : ${f.type.name} = ${sval}\n")
+                } catch (e: Throwable) {
+                    sb.append("Field: ${f.name} unreadable: ${e.message}\n")
+                }
+            }
+            for (m in c.declaredMethods) {
+                try {
+                    sb.append("Method: ${m.name} -> ${m.returnType.name} (params=${m.parameterCount})\n")
+                } catch (_: Throwable) {}
+            }
+            c = c.superclass
+        }
+
+        // write to file under plugin data folder
+        try {
+            val docsDir = File(instance.dataFolder, "documentation/")
+            if (!docsDir.exists()) docsDir.mkdirs()
+            val out = File(docsDir, "verboseDump-${'$'}{System.currentTimeMillis()}.log")
+            BufferedWriter(OutputStreamWriter(FileOutputStream(out), "UTF-8")).use { w -> w.write(sb.toString()) }
+            println("[DEBUG] getAddon: verbose dump written to ${out.absolutePath}")
+            // Also notify the sender if available so it's easy to spot when running in-game
+            sender?.sendMessage("[Skript Hub Docs Tool] Verbose dump written: ${out.absolutePath}")
+        } catch (ex: Exception) {
+            println("[DEBUG] getAddon: failed to write verbose dump: ${ex.message}")
+        }
     }
 }
