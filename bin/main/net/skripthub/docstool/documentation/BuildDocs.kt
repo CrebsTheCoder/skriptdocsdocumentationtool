@@ -70,6 +70,11 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         val eventValuesGetter = EventValuesGetter()
         val registry = Skript.instance().syntaxRegistry()
+
+        // ========================================================================================
+        // PHASE 1: Legacy API (Priority)
+        // We run this FIRST because it provides the correct source classes (e.g. threeadd.packetEventsSK...)
+        // ========================================================================================
         sender?.sendMessage("Collecting from Legacy API (Priority)...")
 
         try {
@@ -93,6 +98,12 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         try { for (info in Skript.getSections()) processLegacyElement(info, "sections", globalProcessedPatterns, counters) } catch (_: Exception) {}
         try { for (info in Skript.getStructures()) processLegacyElement(info, "structures", globalProcessedPatterns, counters) } catch (_: Exception) {}
 
+        // ========================================================================================
+        // PHASE 2: SyntaxRegistry (New API)
+        // We run this SECOND to catch anything missing from Legacy. 
+        // It will NOT overwrite existing entries because of 'globalProcessedPatterns'.
+        // ========================================================================================
+        sender?.sendMessage("Collecting from SyntaxRegistry API (Secondary)...")
 
         try { for (s in registry.syntaxes(BukkitRegistryKeys.EVENT)) processSyntaxInfo(s, globalProcessedPatterns, counters, "events", eventValuesGetter) } catch (_: Exception) {}
         try { for (s in registry.syntaxes(SyntaxRegistry.CONDITION)) processSyntaxInfo(s, globalProcessedPatterns, counters, "conditions", null) } catch (_: Exception) {}
@@ -124,7 +135,9 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         sender?.sendMessage("Expressions: ${counters["expressions"]}, Sections: ${counters["sections"]}, Structures: ${counters["structures"]}")
         sender?.sendMessage("Types: ${counters["types"]}, Functions: ${counters["functions"]}")
 
-
+        // ========================================================================================
+        // PHASE 4: Merge & Write
+        // ========================================================================================
         for (addon in addonMap.keys) {
             val addonInfo = addonMap[addon] ?: continue
             val idSet: MutableSet<String> = mutableSetOf()
@@ -155,6 +168,8 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         sender?.sendMessage("[" + ChatColor.DARK_AQUA + "Skript Docs Documentation Tool" + ChatColor.RESET + "] " + ChatColor.GREEN + "Docs have been generated!")
     }
+
+    // --- Processing Helpers ---
 
     private fun processLegacyElement(info: SyntaxElementInfo<*>, typeKey: String, processed: MutableSet<String>, counters: MutableMap<String, Int>) {
         val syntaxData = GenerateSyntax.generateSyntaxFromSyntaxElementInfo(info, null, sender) ?: return
@@ -234,6 +249,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
         val idCollisionList = ArrayList<SyntaxData>()
         val iterator = listOfSyntaxData.listIterator()
 
+        // Extract all entries with the conflicting ID
         while (iterator.hasNext()) {
             val syntax = iterator.next()
             if (id == syntax.id) {
@@ -244,6 +260,7 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
 
         if (idCollisionList.isEmpty()) return
 
+        // Take the first one as the master
         val firstInstance = idCollisionList[0]
         val firstDesc = firstInstance.description
 
@@ -251,23 +268,29 @@ class BuildDocs(private val instance: JavaPlugin, private val sender: CommandSen
             val syntaxToMerge = idCollisionList[i]
             val mergeDesc = syntaxToMerge.description
 
+            // Check if descriptions match (Safe comparison)
             val isSameDesc = if (firstDesc == null && mergeDesc == null) true
             else if (firstDesc != null && mergeDesc != null) firstDesc.contentEquals(mergeDesc)
             else false
 
             if (isSameDesc && syntaxToMerge.name == firstInstance.name) {
+                // True Duplicate: Merge patterns
                 if (!syntaxToMerge.patterns.isNullOrEmpty()) {
                     firstInstance.patterns = firstInstance.patterns?.plus(syntaxToMerge.patterns!!)
                 }
             } else {
+                // Different functionality, same ID.
+                // WE MUST CHANGE THE ID so it doesn't get overwritten in JSON.
                 syntaxToMerge.id = "${syntaxToMerge.id}_$i"
                 listOfSyntaxData.add(syntaxToMerge)
             }
         }
         
+        // Add the master back
         listOfSyntaxData.add(firstInstance)
     }
 
+    // --- ADDON IDENTIFICATION LOGIC ---
 
     private fun getAddonByClass(classObj: Class<*>): AddonData? {
         var name = classObj.`package`?.name ?: return null
