@@ -25,9 +25,6 @@ import java.util.*
 class GenerateSyntax {
     companion object {
 
-        // --- REFLECTION HELPERS ---
-
-        // Find a specific field by name (up the hierarchy)
         private fun findDeepField(clazz: Class<*>, fieldName: String): Field? {
             var currentClass: Class<*>? = clazz
             while (currentClass != null) {
@@ -41,8 +38,6 @@ class GenerateSyntax {
             }
             return null
         }
-
-        // Get ALL fields from a class and its superclasses
         private fun getAllFields(clazz: Class<*>): List<Field> {
             val fields = ArrayList<Field>()
             var currentClass: Class<*>? = clazz
@@ -57,8 +52,7 @@ class GenerateSyntax {
             return findDeepField(obj.javaClass, fieldName)?.get(obj)
         }
 
-        // --- CLASS HUNTING LOGIC ---
-
+        
         private fun unwrapSyntaxElementInfo(syntax: SyntaxInfo<*>): SyntaxElementInfo<*>? {
             try {
                 val field = findDeepField(syntax.javaClass, "info")
@@ -69,15 +63,8 @@ class GenerateSyntax {
             } catch (_: Exception) {}
             return null
         }
-
-        /**
-         * The "Hunter" method.
-         * Scans the SyntaxInfo object for ANY field that holds a Class<?> which has Skript annotations.
-         * This bypasses obfuscation and wrapper classes (like SimplePropertyExpression).
-         */
         private fun getElementClassFromSyntaxInfo(syntax: SyntaxInfo<*>): Class<*>? {
             try {
-                // 1. Fast Path: Check standard field names first
                 var field = findDeepField(syntax.javaClass, "elementClass")
                 var cls = field?.get(syntax) as? Class<*>
                 if (isValidDocClass(cls)) return cls
@@ -86,22 +73,16 @@ class GenerateSyntax {
                 cls = field?.get(syntax) as? Class<*>
                 if (isValidDocClass(cls)) return cls
 
-                // 2. Unwrap Legacy Info
                 val info = unwrapSyntaxElementInfo(syntax)
                 if (info != null) {
                     if (isValidDocClass(info.elementClass)) return info.elementClass
-
-                    // Scan fields in the legacy info object
                     val infoResult = scanForAnnotatedClass(info)
                     if (infoResult != null) return infoResult
                 }
 
-                // 3. Brute Force Scan on the SyntaxInfo object itself
-                // This finds ExprWardenAnger even if it's stored in a field called "delegate" or "expr"
                 val syntaxResult = scanForAnnotatedClass(syntax)
                 if (syntaxResult != null) return syntaxResult
 
-                // 4. Return whatever we found in step 1 even if it didn't have annotations (better than nothing)
                 return cls ?: info?.elementClass
             } catch (_: Exception) {}
             return null
@@ -123,13 +104,10 @@ class GenerateSyntax {
 
         private fun isValidDocClass(clazz: Class<*>?): Boolean {
             if (clazz == null) return false
-            // We are looking for the class that has the docs.
             return clazz.isAnnotationPresent(Name::class.java) ||
                     clazz.isAnnotationPresent(Description::class.java) ||
                     clazz.isAnnotationPresent(Examples::class.java)
         }
-
-        // --- ANNOTATION HELPERS ---
 
         fun <A : Annotation, R> grabAnnotation(source: Class<*>, annotation: Class<A>, supplier: (A) -> R?, default: R? = null): R? {
             if (!source.isAnnotationPresent(annotation)) return default
@@ -179,7 +157,6 @@ class GenerateSyntax {
                 .lowercase(Locale.ROOT).replace("_", " ")
         }
 
-        // --- MAIN GENERATION LOGIC ---
 
         @Suppress("UNUSED_PARAMETER")
         fun generateSyntaxFromSyntaxInfo(syntax: SyntaxInfo<*>, getter: Any?, sender: Any?): SyntaxData? {
@@ -187,7 +164,6 @@ class GenerateSyntax {
             val patternCollection = syntax.patterns()
             var extractedEntries: Array<DocumentationEntryNode>? = null
 
-            // 1. Handle Structures (like Sections)
             if (syntax is StructureInfo) {
                 try {
                     val validator = syntax.entryValidator
@@ -197,14 +173,12 @@ class GenerateSyntax {
                 } catch (_: Exception) {}
             }
 
-            // 2. Generate Patterns
             data.patterns = if (extractedEntries != null && extractedEntries.isNotEmpty()) {
                 generateEnhancedPatterns(patternCollection.toTypedArray(), extractedEntries)
             } else {
                 cleanSyntaxInfoPatterns(patternCollection.toTypedArray())
             }
-
-            // 3. Generate Name
+            
             val firstPattern = patternCollection.firstOrNull()
             if (firstPattern != null) {
                 data.name = generateCleanName(firstPattern)
@@ -214,10 +188,9 @@ class GenerateSyntax {
 
             val legacyInfo = unwrapSyntaxElementInfo(syntax)
 
-            // USE THE HUNTER to find the class with @Name/@Description (if any)
+            
             val syntaxElementClass = getElementClassFromSyntaxInfo(syntax)
 
-            // 4. Populate from Legacy Info (Dynamic/Old Docs)
             if (legacyInfo != null) {
                 val descArr = getFieldValue(legacyInfo, "description") as? Array<String>
                 data.description = cleanHTML(descArr)
@@ -239,9 +212,8 @@ class GenerateSyntax {
                 }
             }
 
-            // 5. Populate from Class Annotations OR Fallback
             if (syntaxElementClass != null) {
-                // --- CASE A: We found an annotated class ---
+
                 if (syntaxElementClass.isAnnotationPresent(NoDoc::class.java)) return null
 
                 val annotatedName = grabAnnotation(syntaxElementClass, Name::class.java, { ann -> ann.value.ifBlank { null } }, null)
@@ -260,24 +232,19 @@ class GenerateSyntax {
                 if (data.requiredPlugins == null) data.requiredPlugins = cleanHTML(grabAnnotation(syntaxElementClass, RequiredPlugins::class.java, { ann -> ann.value }))
                 data.keywords = grabAnnotation(syntaxElementClass, Keywords::class.java, { ann -> ann.value })
 
-                // Correctly use the found class name
+                
                 data.source = syntaxElementClass.name
                 data.properSource = getProperSourcePath(legacyInfo?.originClassPath, syntaxElementClass.name)
 
             } else {
-                // --- CASE B: No annotations found (Fallback) ---
-                // This handles classes that have no docs but we still want the correct Source Path
-                
                 data.id = data.name?.replace(Regex("[^A-Za-z0-9]"), "_")
                 
-                // Attempt to find the raw class using reflection even if it has no annotations
                 var rawClass: Class<*>? = null
                 try {
-                    // Check 'c' (common Skript obfuscation)
                     var field = findDeepField(syntax.javaClass, "c")
                     rawClass = field?.get(syntax) as? Class<*>
                     
-                    // Check 'elementClass'
+                    
                     if (rawClass == null) {
                         field = findDeepField(syntax.javaClass, "elementClass")
                         rawClass = field?.get(syntax) as? Class<*>
@@ -287,17 +254,14 @@ class GenerateSyntax {
                 val origin = syntax.origin()
 
                 if (rawClass != null) {
-                    // We found the class! Use it for the source.
                     data.source = rawClass.name
                     data.properSource = getProperSourcePath(legacyInfo?.originClassPath, rawClass.name)
                 } else {
-                    // Absolute fallback (e.g. "PacketEventsSK") if we truly cannot find the class
                     data.source = ""
                     data.properSource = origin.name()
                 }
             }
 
-            // 6. Generate Entry Data (if any)
             if (data.entries == null && syntax !is StructureInfo && legacyInfo != null) {
                 data.entries = generateEntriesFromSyntaxElementInfo(legacyInfo, sender as? CommandSender)
             }
@@ -390,7 +354,7 @@ class GenerateSyntax {
             data.requiredPlugins = cleanHTML(grabAnnotation(elementClass, RequiredPlugins::class.java, { ann -> ann.value }))
             data.keywords = grabAnnotation(elementClass, Keywords::class.java, { ann -> ann.value })
             data.entries = extractedEntries
-            // NEW CODE: Force the class name as the source
+            
             data.source = elementClass.name 
             data.properSource = getProperSourcePath(info.originClassPath, elementClass.name)
             return data

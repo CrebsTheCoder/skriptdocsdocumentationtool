@@ -50,7 +50,6 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                     val sourceToUse = syntax.properSource ?: syntax.source ?: ""
                     syntaxEntry.addProperty("source", sourceToUse)
 
-                    // Add event values array if present
                     val eventValues = syntax.eventValues
                     if (eventValues != null && eventValues.isNotEmpty()) {
                         val eventValuesArray = JsonArray()
@@ -59,15 +58,12 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                     }
 
 
-                    // Add usage array as 'type usage' (for types)
                     val usage = syntax.typeUsage
                     if (usage != null && usage.isNotEmpty()) {
                         val typeUsageArray = JsonArray()
                         usage.forEach { typeUsageArray.add(it) }
                         syntaxEntry.add("type usage", typeUsageArray)
                     }
-
-                    // Add changers array if present (for expressions/types)
                     val changers = syntax.changers
                     if (changers != null && changers.isNotEmpty()) {
                         val changersArray = JsonArray()
@@ -75,12 +71,10 @@ class SkriptDocsAddonFile(raw: Boolean) : FileType("json") {
                         syntaxEntry.add("changers", changersArray)
                     }
 
-                    // Add return type if present (for functions/expressions)
                     if (syntax.returnType != null) {
                         syntaxEntry.addProperty("return type", syntax.returnType)
                     }
 
-                    // Add cancellable if present (for events)
                     if (syntax.cancellable != null) {
                         syntaxEntry.addProperty("cancellable", syntax.cancellable!!)
                     }
